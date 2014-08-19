@@ -4,7 +4,7 @@
 ##Perundevi Sametha Devadhirajan
 ## An attempt to evaluate a multi-programmed case in determine core value
 
-##import os
+import os
 import math
 import sys
 import random
@@ -29,7 +29,7 @@ class core_config():
         self.app_runtime_power={}
         self.app_cycles={}
         self.app_instructions={}
-        self.app_bips2w={}
+        self.app_speedup={}#speedup obtained over base core
 
         self.core_attributes=[]
         self.core_area=None
@@ -76,12 +76,12 @@ class core_config():
     def get_icount (self, app):
         return self.app_instructions[app]
 
-    ## BIPS^2/W for reducing evaluate time
-    def set_bips2w (self, app, bips2w):
-        self.app_bips2w[app] = bips2w
+    ## Precompute Speedup for reducing evaluate time
+    def set_speedup (self, app, speedUp):
+        self.app_speedup[app] = speedUp
 
-    def get_bips2w (self, app):
-        return self.app_bips2w[app]
+    def get_speedup (self, app):
+        return self.app_speedup[app]
 
 
     ### Core Attributes - App independant ####
@@ -172,19 +172,19 @@ def choose_random_config (total_cores, area_constraint, power_constraint):
     return core
 
 def evaluate(total_cores, core, area_constraint, power_constraint):
-    bips_permutation_total_value=0 ##total core level bips value of the schedule
-    max_bips_combination=[]
+    speedup_permutation_total_value=0 ##total core level speedup value of the schedule
+    max_speedup_combination=[]
 
     for p in itertools.combinations(benchmark_list,total_cores):
-        bips_permutation_total_value=0
+        speedup_permutation_total_value=0
         for i in range (0,len(p)):
             current_core=core[i]
-            ##current_benchmk=benchmark_list[benchmark_list.index(p[i])]
-            bips_permutation_total_value+=all_configs[current_core].get_bips2w(p[i])
-        max_bips_combination.append(bips_permutation_total_value)
+            current_benchmk=benchmark_list[benchmark_list.index(p[i])]
+            speedup_permutation_total_value+=all_configs[current_core].get_speedup(current_benchmk)
+        max_speedup_combination.append(speedup_permutation_total_value)
 
-    avg_core_bips = sum(max_bips_combination)/len(max_bips_combination)
-    return avg_core_bips
+    avg_core_speedup = sum(max_speedup_combination)/len(max_speedup_combination)
+    return avg_core_speedup
 
 def simulated_annealing(total_cores,area_constraint, power_constraint):
     #Initial core choices
@@ -210,17 +210,15 @@ def simulated_annealing(total_cores,area_constraint, power_constraint):
         if (processor_area > float(area_constraint) or processor_tdp > float(power_constraint)):
             continue
         else:
+            ##print core_t
             avg_core_bips_t = evaluate(int(total_cores), core_t, float(area_constraint), float(power_constraint))
             if (avg_core_bips_t>avg_core_bips_i):
                 core_i = core_t
-            avg_core_bips_i = avg_core_bips_t
+                avg_core_bips_i = avg_core_bips_t
 
             if (avg_core_bips_t>avg_core_bips_best):
                 core_best = core_t
                 avg_core_bips_best = avg_core_bips_t
-
-            #avg_core_bips_i = evaluate (core_i,int(area_constraint), int(power_constraint))
-            #avg_core_bips_best = evaluate (core_best,int(area_constraint), int(power_constraint))
     return core_best
 
 all_configs = [core_config() for i in range (0,673)]
@@ -243,8 +241,6 @@ for line in file (sys.argv[1]):
     all_configs[r].set_frequency(float(frequency))
     all_configs[r].set_attribute(attributes)
     all_configs[r].set_coreID(r)
-    bips2w=bips_per_watt2(ipc,frequency,(float(runtime_dynamic)+float(total_leakage)))
-    all_configs[r].set_bips2w(benchmark,float(bips2w))
 
 ##Hack to populate the first instance of the class - the input file has values from
 ## core_config'1' => all_config[0] is never populated
@@ -258,8 +254,19 @@ for i in range (0,673):
         peakPower.append(all_configs[i].get_app_peak_power(current_benchmark))
     all_configs[i].set_core_peak_power(max(peakPower))
 
-#for i in range (0,225):
-#	print i,all_configs[i].get_core_peak_power(),all_configs[i].get_area()
+### Setting Speedup observed copared to basic core
+for index in range(0, len(benchmark_list)):
+    for i in range (0,673):
+        current_benchmark = benchmark_list[index]
+        if (current_benchmark == 'DUMMY'):
+            speedup=0
+            all_configs[i].set_speedup(benchmark,speedup)
+        else:
+            ## Config865 is the simplest core in the study
+            speedup=execution_time(all_configs[1].get_cycles(current_benchmark),all_configs[1].get_frequency())/execution_time(all_configs[i].get_cycles(current_benchmark),all_configs[i].get_frequency())
+            all_configs[i].set_speedup(current_benchmark,speedup)
+        ##	print all_configs[i], current_benchmark, all_configs[i].get_speedup(current_benchmark)
+
 
 
 ###### Assigning variables for human readability ####
@@ -279,7 +286,7 @@ fileName = 'HoCMP_' + sys.argv[2] + 'C_' + sys.argv[3] + 'mm_' + sys.argv[4] + '
 myFile = open (fileName, 'w')
 myFile.write("Chosen Cores\n" + str(optimized_cores))
 myFile.write("\n")
-myFile.write("Average BIPS^2/W: " + str(bestcore_speedup))
+myFile.write("Average Speedup: " + str(bestcore_speedup))
 myFile.write("\n"+"\n")
 
 for i in range (0, len(optimized_cores)):
@@ -353,7 +360,6 @@ fileName += ".csv"
 myFile = open (fileName, 'w')
 
 for index in range(len(benchmark_list)):
-    #myFile.write(str(benchmark_list[index]) + ", config core" + str(optimized_cores[0]) + ", " + str(all_configs[optimized_cores[0]].get_perf(benchmark_list[index])) + ", " + str(all_configs[optimized_cores[0]].get_power(benchmark_list[index])) + ", " + str(bips_per_watt2(all_configs[optimized_cores[0]].get_perf(benchmark_list[index]),2, all_configs[optimized_cores[0]].get_power(benchmark_list[index])+all_configs[optimized_cores[0]].get_leak_power())))
-    myFile.write(str(benchmark_list[index]) + ", config core" + str(optimized_cores[0]) + ", " + str(all_configs[optimized_cores[0]].get_perf(benchmark_list[index])) + ", " + str(all_configs[optimized_cores[0]].get_runtime_power(benchmark_list[index])) + ", " + str(all_configs[optimized_cores[0]].get_bips2w(benchmark_list[index])))
+    myFile.write(str(benchmark_list[index]) + ", config core" + str(optimized_cores[0]) + ", " + str(all_configs[optimized_cores[0]].get_perf(benchmark_list[index])) + ", " + str(all_configs[optimized_cores[0]].get_runtime_power(benchmark_list[index])) + ", " + str(all_configs[optimized_cores[0]].get_speedup(benchmark_list[index])))
     myFile.write("\n")
 myFile.close()
