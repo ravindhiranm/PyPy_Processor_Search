@@ -4,14 +4,14 @@
 ##Perundevi Sametha Devadhirajan
 ## An attempt to evaluate a multi-programmed case in determine core value
 
-import os
+##import os
 import math
 import sys
 import random
 import itertools
 
 ##benchmark_list = ['400.perlbench','401.bzip2','403.gcc','410.bwaves','416.gamess','429.mcf','433.milc','435.gromacs','444.namd','445.gobmk','450.soplex','453.povray','456.hmmer', '458.sjeng','459.GemsFDTD','462.libquantum','464.h264ref','470.lbm','471.omnetpp','473.astar','482.sphinx3','DUMMY']
-benchmark_list = ['400.perlbench','401.bzip2','403.gcc','429.mcf','445.gobmk','454.calculix','456.hmmer','458.sjeng','462.libquantum','464.h264ref','465.tonto','483.xalancbmk']
+##benchmark_list = ['400.perlbench','401.bzip2','403.gcc','429.mcf','445.gobmk','454.calculix','456.hmmer','458.sjeng','462.libquantum','464.h264ref','465.tonto','483.xalancbmk']
 
 def toint(v):
     try:
@@ -154,41 +154,26 @@ def comb(n1,n2):
     n3=math.factorial(n1)/(math.factorial(n2)*math.factorial(n1-n2))
     return n3
 
-def choose_random_config (total_cores, area_constraint, power_constraint):
-    ##Assign bogus high values
-    processor_area = 2*area_constraint
-    processor_tdp = 2*power_constraint
-    while (processor_area > area_constraint or processor_tdp > power_constraint):
-        processor_area = 0
-        processor_tdp = 0
-        core=[]
-        temp = random.randint(1,672)
-        for i in range (0, total_cores):
-            core.append(temp)
-            ##print core
-            processor_area += float(all_configs[core[i]].get_area())
-            processor_tdp += float(all_configs[core[i]].get_core_peak_power())
-    ##print "processor config", core
-    return core
-
 def evaluate(total_cores, core, area_constraint, power_constraint):
     speedup_permutation_total_value=0 ##total core level speedup value of the schedule
     max_speedup_combination=[]
+    total_eval_range = range(0,total_cores)
 
     for p in itertools.combinations(benchmark_list,total_cores):
         speedup_permutation_total_value=0
-        for i in range (0,len(p)):
+        for i in total_eval_range:
             current_core=core[i]
-            current_benchmk=benchmark_list[benchmark_list.index(p[i])]
-            speedup_permutation_total_value+=all_configs[current_core].get_speedup(current_benchmk)
+            speedup_permutation_total_value+=all_configs[current_core].get_speedup(p[i])
         max_speedup_combination.append(speedup_permutation_total_value)
 
     avg_core_speedup = sum(max_speedup_combination)/len(max_speedup_combination)
     return avg_core_speedup
 
-def simulated_annealing(total_cores,area_constraint, power_constraint):
+def exhaustive_search(total_cores, area_constraint, power_constraint):
     #Initial core choices
-    core_i = choose_random_config (int(total_cores), float(area_constraint), float(power_constraint))
+    core_i = []
+    core_i.append(0)
+    core_i = core_i*total_cores
     avg_core_bips_i = evaluate (int(total_cores), core_i, float(area_constraint), float(power_constraint))
     ##print total_cores,powered_cores,core_i,area_constraint,power_constraint,avg_core_bips_i
 
@@ -223,24 +208,44 @@ def simulated_annealing(total_cores,area_constraint, power_constraint):
 
 all_configs = [core_config() for i in range (0,673)]
 
+
+#### Creating a dictionary to map benchmark names to numbers ####
+#### an attempt to speed up search ###
+benchmark_map={}
+bench_map=0
+
 for line in file (sys.argv[1]):
     core_configt,benchmark,frequency,ss_width,rob_size,iq_size,lq_size,sq_size,l1_icache_size,l1_dcache_size,l2_cache_size,instructions,cycles,ipc,ex_time,area,peak_power,runtime_dynamic,total_leakage=line.strip().split(',')
 
     ## Get index for core instance
     something = core_configt.split('core_config')[1]
     r = toint(something)
+
+    ## mapping each benchmark to a number to speed up search
+    if (benchmark_map == {}):
+        benchmark_map[bench_map] = benchmark
+    elif not benchmark in benchmark_map.values():
+        bench_map += 1
+        benchmark_map[bench_map] = benchmark
+
     #attributes=[int(ss_width),int(rob_size),int(iq_size),int(lq_size),int(sq_size),int(l1_icache_size),int(l2_cache_size)]
     attributes=[ss_width,rob_size,iq_size,lq_size,sq_size,l1_icache_size,l1_dcache_size,l2_cache_size]
-    all_configs[r].set_icount(benchmark,int(instructions))
-    all_configs[r].set_cycles(benchmark,int(cycles))
-    all_configs[r].set_perf(benchmark,float(ipc))
-    all_configs[r].set_runtime_power(benchmark,float(runtime_dynamic))
-    all_configs[r].set_app_peak_power(benchmark,float(peak_power))
+    all_configs[r].set_icount(bench_map,int(instructions))
+    all_configs[r].set_cycles(bench_map,int(cycles))
+    all_configs[r].set_perf(bench_map,float(ipc))
+    all_configs[r].set_runtime_power(bench_map,float(runtime_dynamic))
+    all_configs[r].set_app_peak_power(bench_map,float(peak_power))
     all_configs[r].set_leak_power(float(total_leakage))
     all_configs[r].set_area(float(area))
     all_configs[r].set_frequency(float(frequency))
     all_configs[r].set_attribute(attributes)
     all_configs[r].set_coreID(r)
+
+#### to support legacy code - benchmark_list is used every where - see top of the program
+##print benchmark_map
+benchmark_list = range(0,len(benchmark_map))
+##benchmark_list = ['400.perlbench','401.bzip2','403.gcc','429.mcf','445.gobmk','454.calculix','456.hmmer','458.sjeng','462.libquantum','464.h264ref','465.tonto','483.xalancbmk']
+###print benchmark_list
 
 ##Hack to populate the first instance of the class - the input file has values from
 ## core_config'1' => all_config[0] is never populated
@@ -276,90 +281,124 @@ power_constraint=float(sys.argv[4])
 
 #### Starting the search
 optimized_cores = []
-optimized_cores=simulated_annealing(sys.argv[2],sys.argv[3],sys.argv[4])
+optimized_cores=exhaustive_search(total_cores, area_constraint, power_constraint)
 
 ## evaluation of the best core obtained from search
-bestcore_speedup = evaluate (int(sys.argv[2]),optimized_cores, int(sys.argv[3]), int(sys.argv[4]))
+bestcore_speedup = evaluate (total_cores ,optimized_cores, area_constraint, power_constraint)
 
 ## Writing output to file
-fileName = 'HoCMP_' + sys.argv[2] + 'C_' + sys.argv[3] + 'mm_' + sys.argv[4] + 'W'
+fileName = 'HoCMP_' + str(total_cores) + 'C_' + str(int(area_constraint)) + 'mm_' + str(int(power_constraint)) + 'W'
 myFile = open (fileName, 'w')
 myFile.write("Chosen Cores\n" + str(optimized_cores))
 myFile.write("\n")
 myFile.write("Average Speedup: " + str(bestcore_speedup))
 myFile.write("\n"+"\n")
 
-for i in range (0, len(optimized_cores)):
-    config_detail = all_configs[optimized_cores[i]].get_attribute()
-    myFile.write( "Core_" + str(optimized_cores[i]) + ";Area:"  + str(all_configs[optimized_cores[i]].get_area()) + ";Peak_Power:" + str(all_configs[optimized_cores[i]].get_core_peak_power()) + ";h264ref_Power:" + str(all_configs[optimized_cores[i]].get_runtime_power('464.h264ref')) + "\n")
-    myFile.write("F=" + str(all_configs[optimized_cores[i]].get_frequency()) + "-W=" + config_detail[0] + "-ROB=" + config_detail[1] + "-IQ=" + config_detail[2] + "-LQ=" + config_detail[3] + "-SQ=" + config_detail[4] + "-L1_I$=" + config_detail[5] + "-L1_D$=" + config_detail[6] + "-L2=" + config_detail[7] + "\n" + "\n")
+config_detail = all_configs[optimized_cores[0]].get_attribute()
+myFile.write( "Core_" + str(all_configs[optimized_cores[0]].get_coreID()) + ";Area:"  + str(all_configs[optimized_cores[0]].get_area()) + ";Peak_Power:" + str(all_configs[optimized_cores[0]].get_core_peak_power()) + ";h264ref_Power:" + str(all_configs[optimized_cores[0]].get_runtime_power(9)) + "\n")
+myFile.write("F=" + str(all_configs[optimized_cores[0]].get_frequency()) + "-W=" + config_detail[0] + "-ROB=" + config_detail[1] + "-IQ=" + config_detail[2] + "-LQ=" + config_detail[3] + "-SQ=" + config_detail[4] + "-L1_I$=" + config_detail[5] + "-L1_D$=" + config_detail[6] + "-L2=" + config_detail[7] + "\n" + "\n")
 myFile.close()
 
 fileN = fileName + '.json'
 myFile = open (fileN, 'w')
 myFile.write("series: [{" + "\n")
 myFile.write("  name: 'Largest_Core'," + "\n")
-myFile.write("  data: [3,4,5,2,2,4],\n")
+myFile.write("  data: [5,4,5,2,2,4],\n")
 myFile.write("  pointPlacement: 'on'\n")
 myFile.write("}\n")
 
-for i in range (0, len(optimized_cores)):
-    config_detail = all_configs[optimized_cores[i]].get_attribute()
+config_detail = all_configs[optimized_cores[0]].get_attribute()
 
-    ####attributes=[ss_width,rob_size,iq_size,lq_size,sq_size,l1_icache_size,l1_dcache_size,l2_cache_size]
-    ##Check ROB Size to Determine Inorder of OoO
-    if (int(config_detail[1])==4):
-        config_detail1 = 1
-    elif (int(config_detail[1])==40):
-        config_detail1=2
-    elif (int(config_detail[1])==128):
-        config_detail1=3
-    elif (int(config_detail[1])==168):
-        config_detail1=4
-    elif (int(config_detail[1])==192):
-        config_detail1=5
-    else:
-        config_detail1=10000
+####attributes=[ss_width,rob_size,iq_size,lq_size,sq_size,l1_icache_size,l1_dcache_size,l2_cache_size]
+##Check ROB Size to Determine Inorder of OoO
+if (int(config_detail[1])==4):
+    config_detail1 = 1
+elif (int(config_detail[1])==40):
+    config_detail1=2
+elif (int(config_detail[1])==128):
+    config_detail1=3
+elif (int(config_detail[1])==168):
+    config_detail1=4
+elif (int(config_detail[1])==192):
+    config_detail1=5
+else:
+    config_detail1=10000
 
-    ##L1 I$
-    if (int(config_detail[5])==16):
-        config_detail2=1
-    elif (int(config_detail[5])==32):
-        config_detail2=2
-    else:
-        config_detail5=10000
+##L1 I$
+if (int(config_detail[5])==16):
+    config_detail2=1
+elif (int(config_detail[5])==32):
+    config_detail2=2
+else:
+    config_detail5=10000
 
-    ##L1 D$
-    if (int(config_detail[6])==32):
-        (config_detail3)=1
-    elif (int(config_detail[6])==64):
-        (config_detail3)=2
-    else:
-        config_detail5=10000
+##L1 D$
+if (int(config_detail[6])==32):
+    (config_detail3)=1
+elif (int(config_detail[6])==64):
+    (config_detail3)=2
+else:
+    config_detail5=10000
 
-    ##L2
-    if (int(config_detail[7])==128):
-        config_detail4=1
-    elif (int(config_detail[7])==256):
-        config_detail4=2
-    elif (int(config_detail[7])==512):
-        config_detail4=3
-    elif (int(config_detail[7])==1024):
-        config_detail4=4
-    else:
-        config_detail4=10000
+##L2
+if (int(config_detail[7])==128):
+    config_detail4=1
+elif (int(config_detail[7])==256):
+    config_detail4=2
+elif (int(config_detail[7])==512):
+    config_detail4=3
+elif (int(config_detail[7])==1024):
+    config_detail4=4
+else:
+    config_detail4=10000
 
-    myFile.write(" ,{name: 'core_" + str(optimized_cores[i]) + "'," + "\n")
-    myFile.write("  data: [" + str(all_configs[optimized_cores[i]].get_frequency()) + "," + str(config_detail[0]) + "," + str(config_detail1) + "," + str(config_detail2) + "," + str(config_detail3) + "," + str(config_detail4) + "]," +"\n")
-    myFile.write("  pointPlacement: 'on'\n")
-    myFile.write("}\n")
+##Frequency
+freq=all_configs[optimized_cores[0]].get_frequency()
+if (freq==1.0):
+    config_detail0=1
+elif (freq==1.5):
+    config_detail0=2
+elif (freq==2.0):
+    config_detail0=3
+elif (freq==2.5):
+    config_detail0=4
+elif (freq==3.0):
+    config_detail0=5
+else:
+    config_detail0=10000
+##if (freq==1.0):
+##    config_detail0=1
+##elif (freq==1.25):
+##    config_detail0=2
+##elif (freq==1.5):
+##    config_detail0=3
+##elif (freq==1.75):
+##    config_detail0=4
+##elif (freq==2.0):
+##    config_detail0=5
+##elif (freq==2.25):
+##    config_detail0=6
+##elif (freq==2.5):
+##    config_detail0=7
+##elif (freq==2.75):
+##    config_detail0=8
+##elif (freq==3.0):
+##    config_detail0=9
+##else:
+##    config_detail0=10000
+
+myFile.write(" ,{name: 'core_" + str(all_configs[optimized_cores[0]].get_coreID()) + "'," + "\n")
+myFile.write("  data: [" + str(config_detail0) + "," + str(config_detail[0]) + "," + str(config_detail1) + "," + str(config_detail2) + "," + str(config_detail3) + "," + str(config_detail4) + "]," +"\n")
+myFile.write("  pointPlacement: 'on'\n")
+myFile.write("}\n")
 myFile.write("]\n")
 myFile.close()
 
+#### Printing out goodness, preferred core and core-ranking for each application #####
 fileName += ".csv"
 myFile = open (fileName, 'w')
 
 for index in range(len(benchmark_list)):
-    myFile.write(str(benchmark_list[index]) + ", config core" + str(optimized_cores[0]) + ", " + str(all_configs[optimized_cores[0]].get_perf(benchmark_list[index])) + ", " + str(all_configs[optimized_cores[0]].get_runtime_power(benchmark_list[index])) + ", " + str(all_configs[optimized_cores[0]].get_speedup(benchmark_list[index])))
+    myFile.write(str(benchmark_map[index]) + ", config core" + str(all_configs[optimized_cores[0]].get_coreID()) + ", " + str(all_configs[optimized_cores[0]].get_perf(benchmark_list[index])) + ", " + str(all_configs[optimized_cores[0]].get_runtime_power(benchmark_list[index])) + ", " + str(all_configs[optimized_cores[0]].get_speedup(benchmark_list[index])))
     myFile.write("\n")
 myFile.close()
