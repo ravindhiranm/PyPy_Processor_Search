@@ -327,7 +327,8 @@ for index in xrange(0, len(benchmark_list)):
 
 ###### Trying to precompute all cores that fit within constraints
 allowed_proc_configs=[]
-for core in itertools.combinations(all_configs,int(total_cores)):
+final_search_space = [all_configs[i] for i in xrange (0,648)]
+for core in itertools.combinations(final_search_space,int(total_cores)):
     processor_area = 0.0
     processor_tdp = 0.0
     run_tdp=[]
@@ -345,7 +346,7 @@ for core in itertools.combinations(all_configs,int(total_cores)):
 
 ## Enabling statistics collection of the search
 stats = statistics()
-search_space_dimension = comb(len(all_configs),int(total_cores))
+search_space_dimension = comb(len(final_search_space),int(total_cores))
 
 ### Starting Search
 optimized_cores = []
@@ -372,7 +373,7 @@ bestcore_speedup = evaluate (int(total_cores), optimized_cores, float(area_const
 fileName = 'HeCMP_' + str(total_cores) + 'C_' + str(int(area_constraint)) + 'mm_' + str(int(power_constraint)) + 'W'
 myFile = open (fileName, 'w')
 myFile.write("########### SRI #########\n")
-myFile.write("Total Search Space (" + str(len(all_configs)) + "choose" + str(int(total_cores)) + "): " + str(search_space_dimension) + "\n")
+myFile.write("Total Search Space (" + str(len(final_search_space)) + "choose" + str(int(total_cores)) + "): " + str(search_space_dimension) + "\n")
 myFile.write("Allowed Processor Configs: " + str(len(allowed_proc_configs)) + "\n")
 myFile.write("Search Space touched: " + str(all_considered) + " (" + str(search_space_touched) + "%)\n")
 myFile.write("Constraint satisfying procs evaluated: " + str(stats.return_evaluated()) + "\n")
