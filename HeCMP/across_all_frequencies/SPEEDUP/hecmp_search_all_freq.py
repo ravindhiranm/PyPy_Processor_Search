@@ -8,6 +8,16 @@ import math
 import sys
 import random
 import itertools
+import datetime
+
+class Timer:
+    def __enter__(self):
+        self.start = datetime.datetime.now()
+        return self
+
+    def __exit__(self, *args):
+        self.end = datetime.datetime.now()
+        self.interval = (self.end - self.start).microseconds
 
 def toint(v):
     try:
@@ -151,39 +161,37 @@ def comb(n1,n2):
 
 def choose_random_config (total_cores, area_constraint, power_constraint):
     ##Assign bogus high values
-        processor_area = area_constraint+10
-        processor_tdp = power_constraint+10
-        total_core_range = range (0, total_cores)
-        while (processor_area > area_constraint or processor_tdp > power_constraint):
-            ##update statistics
-                stats.update_searched()
+    processor_area = area_constraint+10
+    processor_tdp = power_constraint+10
+    total_core_range = range (0, total_cores)
+    while (processor_area > area_constraint or processor_tdp > power_constraint):
+        ##update statistics
+        stats.update_searched()
 
-                processor_area = 0.0
-                processor_tdp = 0.0
-                core=[]
-                for i in total_core_range:
-                    core.append(all_configs[random.randrange(0,3239)])
-                    processor_area += float(core[i].get_area())
-                    processor_tdp += float(core[i].get_core_peak_power())
-        return core
+        processor_area = 0.0
+        processor_tdp = 0.0
+        core=[]
+        for i in total_core_range:
+            core.append(all_configs[random.randrange(0,3239)])
+            processor_area += float(core[i].get_area())
+            processor_tdp += float(core[i].get_core_peak_power())
+    return core
 
 def evaluate(total_cores, core, area_constraint, power_constraint):
-    speedup_permutation_total_value=0 ##total core level speedup value of the schedule
-    speedup_schedules=[]
-    max_speedup_combination=[]
-    total_eval_range = range(0,total_cores)
+    goodness_value_each_permutation=0.0
+    permutations_goodness_container=[]
+    workload_goodness_container=[]
 
-    for p in itertools.combinations(benchmark_list,total_cores):
-        speedup_schedules=[]
-        for r in itertools.permutations(p,total_cores):
-            speedup_permutation_total_value=0
-            for i in total_eval_range:
-                speedup_permutation_total_value+=core[i].get_speedup(r[i])
-            speedup_schedules.append(speedup_permutation_total_value)
-        max_speedup_combination.append(max(speedup_schedules))
+    for p in workloads:
+        permutations_goodness_container=[]
+        for j in permute:
+            goodness_value_each_permutation = 0.0
+            for i in processor_size:
+                goodness_value_each_permutation += core[i].get_speedup(p[j[i]])
+            permutations_goodness_container.append(goodness_value_each_permutation)
+        workload_goodness_container.append(max(permutations_goodness_container))
 
-    avg_core_speedup = sum(max_speedup_combination)/len(max_speedup_combination)
-    return avg_core_speedup
+    return sum(workload_goodness_container)/len(workload_goodness_container)
 
 def exhaustive_search(total_cores,area_constraint, power_constraint):
     # overall best solution
@@ -195,7 +203,10 @@ def exhaustive_search(total_cores,area_constraint, power_constraint):
         stats.update_evaluated()
 
         core_t=allowed_proc_configs[p]
+        #with Timer() as t:
         avg_core_bips_t = evaluate (total_cores, core_t, area_constraint, power_constraint)
+
+        #print('Request took %.03f microsecs.' % t.interval)
 
         if (avg_core_bips_t>avg_core_bips_best):
             core_best = core_t
@@ -207,19 +218,17 @@ def simulated_annealing(total_cores,area_constraint, power_constraint):
     #Initial core choices
         core_i = choose_random_config (total_cores,area_constraint, power_constraint)
         avg_core_bips_i = evaluate (total_cores, core_i, area_constraint, power_constraint)
-        ##print total_cores,powered_cores,core_i,area_constraint,power_constraint,avg_core_bips_i
 
         # overall best solution
         core_best = core_i
         avg_core_bips_best = avg_core_bips_i
 
         quit=0
-        T=100000000
+        T=10000000000
         while T>0:
             core_t=[]
             core_t = choose_random_config (total_cores,area_constraint, power_constraint)
             avg_core_bips_t = evaluate (total_cores, core_t, area_constraint, power_constraint)
-            #avg_core_bips_t = evaluate.evaluate (int(total_cores), int(powered_cores), core_t, float(area_constraint), int(power_constraint))
 
             ### Keeps track of search space touched & when to quit
             stats.update_evaluated()
@@ -251,15 +260,20 @@ def simulated_annealing(total_cores,area_constraint, power_constraint):
 
 ############ Program Starts ########
 
+## Assigning command-line  variables for human readability
+input_file=sys.argv[1]
+total_cores=int(sys.argv[2])
+area_constraint=float(sys.argv[3])
+power_constraint=float(sys.argv[4])
+
 ### Intializing class instances for all cores in the library ###
-all_configs = [core_config() for i in range (0,3240)]
+all_configs = [core_config() for i in range(0,3240)]
 
 #### Creating a dictionary to map benchmark names to numbers ####
-#### an attempt to speed up search ###
 benchmark_map={}
 bench_map=0
 
-for line in file (sys.argv[1]):
+for line in file (input_file):
     core_configt,benchmark,frequency,ss_width,rob_size,iq_size,lq_size,sq_size,l1_icache_size,l1_dcache_size,l2_cache_size,instructions,cycles,ipc,ex_time,area,peak_power,runtime_dynamic,total_leakage=line.strip().split(',')
 
     ## Get index for core instance
@@ -288,9 +302,13 @@ for line in file (sys.argv[1]):
 
 #### to support legacy code - benchmark_list is used every where - see top of the program
 benchmark_list = range(0,len(benchmark_map))
-##benchmark_list = ['400.perlbench','401.bzip2','403.gcc','429.mcf','445.gobmk','454.calculix','456.hmmer','458.sjeng','462.libquantum','464.h264ref','465.tonto','483.xalancbmk']
-###print benchmark_list
-##print benchmark_map
+
+###Create multiprogrammed workload combinations to be used while evaluating goodness
+workloads = list(itertools.combinations(benchmark_list,total_cores))
+
+### Create indices for permutations of workloads
+processor_size = range(0,total_cores)
+permute = list(itertools.permutations(processor_size,total_cores))
 
 ### Setting the core peak power to the max observed peak power among applications
 for i in xrange (0,3240):
@@ -306,52 +324,43 @@ for index in xrange(0, len(benchmark_list)):
         current_benchmark = benchmark_list[index]
         speedup=execution_time(all_configs[0].get_cycles(current_benchmark),all_configs[0].get_frequency())/execution_time(all_configs[i].get_cycles(current_benchmark),all_configs[i].get_frequency())
         all_configs[i].set_speedup(current_benchmark,speedup)
-        print all_configs[i].get_coreID(), current_benchmark, all_configs[i].get_speedup(current_benchmark)
-
-## Assigning command-line  variables for human readability
-total_cores=int(sys.argv[2])
-area_constraint=float(sys.argv[3])
-power_constraint=float(sys.argv[4])
-powered_cores=total_cores
-##powered_cores=int(sys.argv[5])
 
 ###### Trying to precompute all cores that fit within constraints
-final_search_space = []
-for i in range (0,3240):
-    final_search_space.append(all_configs[i])
 allowed_proc_configs=[]
-for core in itertools.combinations(final_search_space,int(total_cores)):
+for core in itertools.combinations(all_configs,int(total_cores)):
     processor_area = 0.0
     processor_tdp = 0.0
     run_tdp=[]
     for i in range(0,len(core)):
-        #print p[i]
         processor_area += core[i].get_area()
         processor_tdp += core[i].get_core_peak_power()
 
     if (processor_area < int(area_constraint) and processor_tdp < int(power_constraint)):
         allowed_proc_configs.append(list(core))
 
-    if(len(allowed_proc_configs) < 1500000):
+    if(total_cores == 2 or len(allowed_proc_configs) < 1500000):
         continue
     else:
-        allowed_proc_configs=[]
         break
 
 ## Enabling statistics collection of the search
 stats = statistics()
-search_space_dimension = comb(len(final_search_space),int(total_cores))
+search_space_dimension = comb(len(all_configs),int(total_cores))
 
 ### Starting Search
 optimized_cores = []
-if (len(allowed_proc_configs) > 0):
-    print "Starting Exhaustive Search: " + str(total_cores),str(powered_cores),str(area_constraint),str(power_constraint),str(len(allowed_proc_configs))
+if (len(allowed_proc_configs) == 0):
+    print "No valid HeCMP configurations found for given constraints. Loosen constraints and try again :)"
+    sys.exit()
+
+elif (total_cores == 2 or (len(allowed_proc_configs) > 0  and  len(allowed_proc_configs) < 1500000)):
+    print "Starting Exhaustive Search: " + str(total_cores),str(area_constraint),str(power_constraint),str(len(allowed_proc_configs))
     optimized_cores=exhaustive_search(total_cores,area_constraint,power_constraint)
     all_considered = search_space_dimension
     search_space_touched=100
 
 else:
-    print "Starting Simulated Annealing Search: " + str(total_cores),str(powered_cores),str(area_constraint),str(power_constraint),str(len(allowed_proc_configs))
+    print "Starting Simulated Annealing Search: " + str(total_cores),str(area_constraint),str(power_constraint),str(len(allowed_proc_configs))
     optimized_cores=simulated_annealing(total_cores,area_constraint,power_constraint)
     all_considered = stats.return_searched()
     search_space_touched=float(all_considered)/search_space_dimension
@@ -360,10 +369,10 @@ else:
 bestcore_speedup = evaluate (int(total_cores), optimized_cores, float(area_constraint), float(power_constraint))
 
 #### Printing out chosen core and search details to File
-fileName = 'HeCMP_' + str(total_cores) + '_' + str(powered_cores)  + 'C_' + str(int(area_constraint)) + 'mm_' + str(int(power_constraint)) + 'W'
+fileName = 'HeCMP_' + str(total_cores) + 'C_' + str(int(area_constraint)) + 'mm_' + str(int(power_constraint)) + 'W'
 myFile = open (fileName, 'w')
 myFile.write("########### SRI #########\n")
-myFile.write("Total Search Space (" + str(len(final_search_space)) + "choose" + str(int(total_cores)) + "): " + str(search_space_dimension) + "\n")
+myFile.write("Total Search Space (" + str(len(all_configs)) + "choose" + str(int(total_cores)) + "): " + str(search_space_dimension) + "\n")
 myFile.write("Allowed Processor Configs: " + str(len(allowed_proc_configs)) + "\n")
 myFile.write("Search Space touched: " + str(all_considered) + " (" + str(search_space_touched) + "%)\n")
 myFile.write("Constraint satisfying procs evaluated: " + str(stats.return_evaluated()) + "\n")
@@ -453,26 +462,6 @@ for i in range (0, len(optimized_cores)):
         config_detail0=5
     else:
         config_detail0=10000
-    ##if (freq==1.0):
-    ##    config_detail0=1
-    ##elif (freq==1.25):
-    ##    config_detail0=2
-    ##elif (freq==1.5):
-    ##    config_detail0=3
-    ##elif (freq==1.75):
-    ##    config_detail0=4
-    ##elif (freq==2.0):
-    ##    config_detail0=5
-    ##elif (freq==2.25):
-    ##    config_detail0=6
-    ##elif (freq==2.5):
-    ##    config_detail0=7
-    ##elif (freq==2.75):
-    ##    config_detail0=8
-    ##elif (freq==3.0):
-    ##    config_detail0=9
-    ##else:
-    ##    config_detail0=10000
 
     myFile.write(" ,{name: 'core_" + str(optimized_cores[i].get_coreID()) + "'," + "\n")
     myFile.write("  data: [" + str(config_detail0) + "," + str(config_detail[0]) + "," + str(config_detail1) + "," + str(config_detail2) + "," + str(config_detail3) + "," + str(config_detail4) + "]," +"\n")
