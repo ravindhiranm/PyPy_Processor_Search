@@ -1,0 +1,22 @@
+series: [{
+  name: 'Largest_Core',
+  data: [5,4,7,3,3,4],
+  pointPlacement: 'on'
+}
+ ,{name: 'core_605',
+  data: [1,3,7,1,2,2],
+  pointPlacement: 'on'
+}
+ ,{name: 'core_573',
+  data: [1,1,7,3,2,2],
+  pointPlacement: 'on'
+}
+ ,{name: 'core_617',
+  data: [1,3,7,3,2,2],
+  pointPlacement: 'on'
+}
+ ,{name: 'core_600',
+  data: [1,3,7,1,2,1],
+  pointPlacement: 'on'
+}
+]

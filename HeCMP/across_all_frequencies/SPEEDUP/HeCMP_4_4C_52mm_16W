@@ -1,0 +1,20 @@
+########### SRI #########
+Total Search Space (3240choose4): 4583151994590
+Allowed Processor Configs: 0
+Search Space touched: 2428707 (5.29920675305e-07%)
+Constraint satisfying procs evaluated: 1226464
+
+Average Speedup: 28.2629850387
+
+Core_1875;Area:7.78619;Peak_Power:3.39571;h264ref_Power:1.11752
+F=2.0-W=2-ROB=192-IQ=60-LQ=72-SQ=42-L1_I$=16-L1_D$=32-L2=1024
+
+Core_1918;Area:8.25969;Peak_Power:4.00223;h264ref_Power:1.39391
+F=2.0-W=3-ROB=192-IQ=60-LQ=72-SQ=42-L1_I$=64-L1_D$=64-L2=512
+
+Core_3192;Area:6.66259;Peak_Power:7.16731;h264ref_Power:1.89266
+F=3.0-W=3-ROB=192-IQ=60-LQ=72-SQ=42-L1_I$=16-L1_D$=32-L2=128
+
+Core_591;Area:8.17839;Peak_Power:1.27809;h264ref_Power:0.462518
+F=1.0-W=2-ROB=192-IQ=60-LQ=72-SQ=42-L1_I$=32-L1_D$=64-L2=1024
+

@@ -1,0 +1,5 @@
+/bin/bash: line 1: 30371 Killed                  pypy hecmp_search_each_freq.py SPEC_RESULTS_2GHz 4 52 5
+
+real	810m45.740s
+user	810m0.441s
+sys	0m1.955s

@@ -1,0 +1,10 @@
+Traceback (most recent call last):
+  File "app_main.py", line 75, in run_toplevel
+  File "hecmp_search_all_freq.py", line 368
+    elif (len(allowed_proc_configs) = 0):
+                                   ^
+SyntaxError: invalid syntax
+
+real	0m0.099s
+user	0m0.048s
+sys	0m0.005s
