@@ -188,7 +188,7 @@ def choose_random_config (total_cores, area_constraint, power_constraint):
         processor_area = 0.0
         core=[]
         for i in total_core_range:
-            core.append(all_configs[random.randrange(0,224)])
+            core.append(all_configs[random.randrange(0,647)])
             processor_area += float(core[i].get_area())
     return core
 
@@ -276,13 +276,10 @@ def simulated_annealing(total_cores,area_constraint, power_constraint):
         while T>0:
             core_t=[]
             core_t = choose_random_config (total_cores,area_constraint, power_constraint)
-            #avg_core_bips_t = evaluate (total_cores, core_t, area_constraint, power_constraint)
-
-            print "START"
-            with Timer() as t:
-                avg_core_bips_t = evaluate (total_cores, core_t, area_constraint, power_constraint)
-            print('Request took %.03f microsecs.' % t.interval)
-            print "done"
+            avg_core_bips_t = evaluate (total_cores, core_t, area_constraint, power_constraint)
+            ##with Timer() as t:
+            ##    avg_core_bips_t = evaluate (total_cores, core_t, area_constraint, power_constraint)
+            ##print('Request took %.03f microsecs.' % t.interval)
 
             ### Keeps track of search space touched & when to quit
             stats.update_evaluated()
@@ -304,9 +301,9 @@ def simulated_annealing(total_cores,area_constraint, power_constraint):
             #T=T*cool
             T=T-1
 
-            if (quit < 10000):
+            if (quit < 100000):
                 continue
-            elif (quit == 10000):
+            elif (quit == 100000):
                 return core_best
             break
         print "Rama Rama Krishna Krishna"
@@ -321,14 +318,14 @@ area_constraint=float(sys.argv[3])
 power_constraint=float(sys.argv[4])
 
 ### Intializing class instances for all cores in the library ###
-all_configs = [core_config() for i in range (0,225)]
+all_configs = [core_config() for i in range (0,648)]
 
 #### Creating a dictionary to map benchmark names to numbers ####
 benchmark_map={}
 bench_map=0
 
 for line in file (input_file):
-    core_configt,benchmark,frequency1,frequency2,frequency3,ss_width,rob_size,iq_size,lq_size,sq_size,l1_icache_size,l1_dcache_size,l2_cache_size,instructions,cycles_freq1,cycles_freq2,cycles_freq3,ipc_freq1,ipc_freq2,ipc_freq3,area,peak_power_f1,peak_power_f2,peak_power_f3,runtime_dynamic_f1,runtime_dynamic_f2,runtime_dynamic_f3,total_leakage_f1,total_leakage_f2,total_leakage_f3=line.strip().split(',')
+    core_configt,benchmark,frequency1,frequency2,frequency3,frequency4,frequency5,ss_width,rob_size,iq_size,lq_size,sq_size,l1_icache_size,l1_dcache_size,l2_cache_size,instructions,cycles_freq1,cycles_freq2,cycles_freq3,cycles_freq4,cycles_freq5,ipc_freq1,ipc_freq2,ipc_freq3,ipc_freq4,ipc_freq5,area,peak_power_f1,peak_power_f2,peak_power_f3,peak_power_f4,peak_power_f5,runtime_dynamic_f1,runtime_dynamic_f2,runtime_dynamic_f3,runtime_dynamic_f4,runtime_dynamic_f5,total_leakage_f1,total_leakage_f2,total_leakage_f3,total_leakage_f4,total_leakage_f5=line.strip().split(',')
 
     ## Get index for core instance
     something = core_configt.split('core_config')[1]
@@ -344,21 +341,21 @@ for line in file (input_file):
     #attributes=[int(ss_width),int(rob_size),int(iq_size),int(lq_size),int(sq_size),int(l1_icache_size),int(l2_cache_size)]
     attributes=[ss_width,rob_size,iq_size,lq_size,sq_size,l1_icache_size,l1_dcache_size,l2_cache_size]
     all_configs[r].set_icount(bench_map,int(instructions))
-    all_configs[r].set_cycles(bench_map,[int(cycles_freq1),int(cycles_freq2),int(cycles_freq3)])
-    all_configs[r].set_perf(bench_map,[float(ipc_freq1),float(ipc_freq2),float(ipc_freq3)])
-    all_configs[r].set_runtime_power(bench_map,[float(runtime_dynamic_f1),float(runtime_dynamic_f2),float(runtime_dynamic_f3)])
-    all_configs[r].set_app_peak_power(bench_map,[float(peak_power_f1),float(peak_power_f2),float(peak_power_f3)])
-    all_configs[r].set_leak_power([float(total_leakage_f1),float(total_leakage_f2),float(total_leakage_f3)])
+    all_configs[r].set_cycles(bench_map,[int(cycles_freq1),int(cycles_freq2),int(cycles_freq3),int(cycles_freq4),int(cycles_freq5)])
+    all_configs[r].set_perf(bench_map,[float(ipc_freq1),float(ipc_freq2),float(ipc_freq3),float(ipc_freq4),float(ipc_freq5)])
+    all_configs[r].set_runtime_power(bench_map,[float(runtime_dynamic_f1),float(runtime_dynamic_f2),float(runtime_dynamic_f3),float(runtime_dynamic_f4),float(runtime_dynamic_f5)])
+    all_configs[r].set_app_peak_power(bench_map,[float(peak_power_f1),float(peak_power_f2),float(peak_power_f3),float(peak_power_f4),float(peak_power_f5)])
+    all_configs[r].set_leak_power([float(total_leakage_f1),float(total_leakage_f2),float(total_leakage_f3),float(total_leakage_f4),float(total_leakage_f5)])
     all_configs[r].set_area(float(area))
-    all_configs[r].set_frequency([float(frequency1),float(frequency2),float(frequency3)])
+    all_configs[r].set_frequency([float(frequency1),float(frequency2),float(frequency3),float(frequency4),float(frequency5)])
     all_configs[r].set_attribute(attributes)
     all_configs[r].set_coreID(r)
     bips2w_1=bips_per_watt2(ipc_freq1,frequency1,(float(runtime_dynamic_f1)+float(total_leakage_f1)))
     bips2w_2=bips_per_watt2(ipc_freq2,frequency2,(float(runtime_dynamic_f2)+float(total_leakage_f2)))
     bips2w_3=bips_per_watt2(ipc_freq3,frequency3,(float(runtime_dynamic_f3)+float(total_leakage_f3)))
-    all_configs[r].set_bips2w(bench_map,[float(bips2w_1),float(bips2w_2),float(bips2w_3)])
-
-all_configs[0] = all_configs[1]
+    bips2w_4=bips_per_watt2(ipc_freq4,frequency4,(float(runtime_dynamic_f4)+float(total_leakage_f4)))
+    bips2w_5=bips_per_watt2(ipc_freq5,frequency5,(float(runtime_dynamic_f5)+float(total_leakage_f5)))
+    all_configs[r].set_bips2w(bench_map,[float(bips2w_1),float(bips2w_2),float(bips2w_3),float(bips2w_4),float(bips2w_5)])
 
 #### to support legacy code - benchmark_list is used every where - see top of the program
 benchmark_list = range(0,len(benchmark_map))
@@ -373,7 +370,6 @@ permute = list(itertools.permutations(processor_size,total_cores))
 ### Create frequency settings for evaluate
 frequency_combinations = range(0, len(all_configs[100].get_frequency()))
 frequency_settings=list(itertools.product(frequency_combinations,frequency_combinations,frequency_combinations,frequency_combinations))
-
 
 ###### Trying to precompute all cores that fit within constraints
 allowed_proc_configs=[]
